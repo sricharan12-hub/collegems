@@ -96,6 +96,7 @@ import searchRoutes from './search.routes.js';
 // MIDDLEWARES
 // ========================================
 import { authenticate } from "../middlewares/auth.middleware.js";
+import { allowRoles } from "../middlewares/role.middleware.js";
 import { verifyStudent } from "../controllers/idcard.controller.js";
 
 // ========================================
@@ -156,7 +157,12 @@ router.use("/office-hours", officeHoursRoutes);
 // STUDENT SERVICES
 // ========================================
 router.use("/student/idcard", idCardRoutes);
-router.get("/verify/student/:studentId", authenticate, verifyStudent);
+router.get(
+  "/verify/student/:studentId",
+  authenticate,
+  allowRoles("teacher", "hod"),
+  verifyStudent,
+);
 
 // ========================================
 // COMMUNITY & ENGAGEMENT
