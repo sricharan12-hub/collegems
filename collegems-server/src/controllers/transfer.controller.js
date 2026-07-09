@@ -57,6 +57,10 @@ export const getTransferHistory = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (req.user.role === "student" && id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     const student = await User.findOne({ _id: id, role: "student" })
       .select("name email transferHistory")
       .populate("transferHistory.changedBy", "name role");
