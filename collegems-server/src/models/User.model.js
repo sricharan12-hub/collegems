@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 
+  // Incremented on logout/password reset to invalidate previously issued refresh tokens
+  refreshTokenVersion: { type: Number, default: 0 },
+
   // Tags
   tags: {
     type: [String],
