@@ -28,7 +28,11 @@ const generateAccessToken = (user) =>
 
 const generateRefreshToken = (user) =>
   jwt.sign(
-    { id: String(user._id), role: user.role },
+    {
+      id: String(user._id),
+      role: user.role,
+      tokenVersion: user.refreshTokenVersion || 0,
+    },
     process.env.JWT_REFRESH_SECRET,
     {
       expiresIn: "7d",
@@ -273,6 +277,10 @@ export const refresh = async (req, res) => {
           return res.status(401).json({ message: "User not found" });
         }
 
+        if ((decoded.tokenVersion || 0) !== (user.refreshTokenVersion || 0)) {
+          return res.status(403).json({ message: "Refresh token has been revoked" });
+        }
+
         const accessToken = generateAccessToken(user);
         res.json({ accessToken });
       }
@@ -285,6 +293,19 @@ export const refresh = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        await User.findByIdAndUpdate(decoded.id, {
+          $inc: { refreshTokenVersion: 1 },
+        });
+      } catch (err) {
+        // Ignore invalid/expired refresh tokens; there is nothing to revoke.
+      }
+    }
+
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -406,7 +427,14 @@ export const resetPassword = async (req, res) => {
     user.password = await hashPassword(password, 8);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    user.refreshTokenVersion = (user.refreshTokenVersion || 0) + 1;
     await user.save({ validateBeforeSave: false });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
 
     await logAction(user._id, "RESET_PASSWORD", "Auth", user._id, { email: user.email });
 
