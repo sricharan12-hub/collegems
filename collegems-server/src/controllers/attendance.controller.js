@@ -1,8 +1,17 @@
 import Attendance from "../models/Attendance.model.js";
 import AttendanceAlert from "../models/AttendanceAlert.model.js";
+import Course from "../models/Course.model.js";
 import User from "../models/User.model.js";
 import { logAction } from "../utils/auditService.js";
 import { checkSemesterFrozen } from "../services/semesterService.js";
+
+const teacherOwnsStudent = (teacherCourses, student) =>
+  teacherCourses.some(
+    (course) =>
+      (student.semester && course.semester === Number(student.semester)) ||
+      (student.course && course.department.toLowerCase() === student.course.toLowerCase()),
+  );
+
 export const markAttendance = async (req, res) => {
   try {
     const { date, records } = req.body;
@@ -11,6 +20,21 @@ export const markAttendance = async (req, res) => {
       const firstStudent = await User.findById(records[0].studentId);
       if (firstStudent && firstStudent.semester) {
         await checkSemesterFrozen(firstStudent.semester);
+      }
+    }
+
+    if (req.user.role === "teacher") {
+      const teacherCourses = await Course.find({ teacher: req.user.id });
+      for (const r of records) {
+        const student = await User.findOne({ _id: r.studentId, role: "student" });
+        if (!student) {
+          return res.status(404).json({ message: "Student not found" });
+        }
+        if (!teacherOwnsStudent(teacherCourses, student)) {
+          return res.status(403).json({
+            message: "Not authorized to mark attendance for one or more students (no course relationship)",
+          });
+        }
       }
     }
 
