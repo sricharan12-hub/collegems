@@ -2,16 +2,16 @@ import Attendance from "../models/Attendance.model.js";
 import AttendanceAlert from "../models/AttendanceAlert.model.js";
 import User from "../models/User.model.js";
 import { logAction } from "../utils/auditService.js";
-import { checkSemesterFrozen } from "../services/semesterService.js";
+import { checkSemestersFrozen } from "../services/semesterService.js";
 export const markAttendance = async (req, res) => {
   try {
     const { date, records } = req.body;
 
     if (records && records.length > 0) {
-      const firstStudent = await User.findById(records[0].studentId);
-      if (firstStudent && firstStudent.semester) {
-        await checkSemesterFrozen(firstStudent.semester);
-      }
+      const studentIds = [...new Set(records.map((r) => r.studentId))];
+      const students = await User.find({ _id: { $in: studentIds } }).select("semester").lean();
+      const semesters = students.map((s) => s.semester);
+      await checkSemestersFrozen(semesters);
     }
 
     for (const r of records) {
